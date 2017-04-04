@@ -1,0 +1,40 @@
+CGATA	Femelle_asexuée_URMPACO50	A. parthenogenetica		
+CGGCG	Mâle_SFB			A. franciscana		BWA DONE
+CTAGG	Mâle_SALI			A. salina
+CTGAA	Femelle_GSL			A. franciscana		BWA DONE
+GAAGC	Femelle_asexuée_LM5		A. parthenogenetica
+GAGAT	Femelle_SFB			A. franciscana		BWA DONE
+GCATT	Mâle_URM1542			A. urmiana		BWA DONE
+GCGCC	Mâle_SINICA			A. sinica
+GGAAG	Mâle_GSL			A. franciscana		BWA DONE
+GGGGA	Mâle_KAZ			A. kazakhstan
+GTACA	Femelle_asexuée__8_Caitive	A. parthenogenetica
+GTGTG	Femelle_asexuée_URM1230		A. urmiana		BWA DONE
+TAATG	Femelle_asexuée_LAPIX		A. parthenogenetica
+TAGCA	Femelle_KAZ			A. kazakhstan
+TCAGA	Femelle_URM1542			A. urmiana		BWA DONE
+TCGAG	Femelle_asexuée__11_Caitive	A. parthenogenetica
+TGACC	Femelle_asexuée_ODIEL		A. parthenogenetica
+TGGTT	Femelle_asexuée_PAM6		A. parthenogenetica
+AAAAA	Femelle_asexuée__6_Caitive	A. parthenogenetica
+AACCC	Femelle_asexuée_PAM10		A. parthenogenetica
+AAGGG	Femelle_asexuée_1S9		A. franciscana		BWA DONE
+AATTT	Femelle_TIB			A. tibetiana		BWA DONE
+ACACG	Femelle_asexuée_ANK		A. parthenogenetica	!! A enlever !! triploide !!
+ACCAT	Femelle_SINICA			A. sinica
+ACGTA	Femelle_asexuée__7_Caitive	A. parthenogenetica
+ACTGC	Femelle_asexuée__2_Caitive	A. parthenogenetica
+AGAGT	Femelle_asexuée_LM7		A. parthenogenetica
+AGCTG	Femelle_asexuée_2S9		A. franciscana		BWA DONE
+AGGAC	Femelle_asexuée_3S9		A. parthenogenetica
+AGTCA	Femelle_SALI			A. salina
+ATATC	Mâle_TIB			A. tibetiana		BWA DONE
+ATCGA	Femelle_asexuée__10_Caitive	A. parthenogenetica
+ATGCT	Femelle_asexuée_PAM7		A. parthenogenetica
+ATTAG	Femelle_asexuée__12_Caitive	A. parthenogenetica
+CAACT	Femelle_asexuée__5_Caitive	A. parthenogenetica
+CACAG	Femelle_asexuée__4_Caitive	A. parthenogenetica
+CAGTC	Femelle_asexuée__9_Caitive	A. parthenogenetica
+CATGA	Femelle_asexuée__1_Caitive	A. parthenogenetica
+CCAAC	Femelle_asexuée__3_Caitive	A. parthenogenetica
+

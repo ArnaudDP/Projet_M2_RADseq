@@ -1,0 +1,260 @@
+Voici un fichier texte récapitulant l'ensemble des étapes apparement effectuées par Odrade lors de l'analyse de la librairie_M de RADseq. J'y décris les étapes, les scripts, les paramètres et comment comprendre les fichiers de sorties.
+
+####################################################################################################
+#1 RADSeq library cleaning:
+####################################################################################################
+##1 Quality check:
+FASTQC
+http://www.bioinformatics.babraham.ac.uk/projects/fastqc/
+-> Phred > 30 pour tous les reads, on conserve toutes les séquences de 100bp.
+-->Sortie bizarre :"Overrepresented sequences"= 1 séquence 0.144%, source possibe="Illumina Single End Adapter (95% over 21bp)"... Est-ce qu'on a bien nettoyé les adaptateurs...
+
+####################################################################################################
+##2 Demultiplexing and barcode rescue/tag rescue:
+process_radtags : Sépare les indidus poolés ensemble lors du séquençage et nettoye les reads.
+
+Le .sge utilisé (script pour lancer les jobs sur le cluster MBB, Labex Cemeb )
+(/home/ubuntu/Desktop/Odrade/Artemia/PhD/Artemia/Stacks/RADSeq/script/process_radtags_99_pst.sge):
+
+{
+#!/bin/bash
+# Shell to use
+#$ -S /bin/bash
+# Name of the job in SGE
+#$ -N process_radtags
+# Maximum hardware time allowed to this job
+#$-l h_rt=01:45:00
+# run in the current directory
+#$ -cwd
+#$ -o o.process.txt
+#$ -e e.process.txt
+
+/share/apps/bin/stacks/bin/process_radtags -p /home/onougue/Sample_M -b /home/onougue/barcodes.txt -i gzfastq -y gzfastq -o /home/onougue/demultiplexed_ON_99_pstI/ -e pstI -r -c -q
+}
+
+Description des arguments utilisés : (liste complete sur : http://catchenlab.life.illinois.edu/stacks/comp/process_radtags.php)
+p — path to a directory of files
+b — path to a file containing barcodes for this run
+i — input file type, either 'bustard' for the Illumina BUSTARD format, 'bam', 'fastq' (default), or 'gzfastq' for gzipped FASTQ
+	-> ici gzfastq
+y — output type, either 'fastq', 'gzfastq', 'fasta', or 'gzfasta' (default is to match the input file type)
+	-> ici inutile
+o — path to output the processed files
+e — [enz], --renz_1 [enz]: provide the restriction enzyme used (cut site occurs on single-end read)
+	-> ici pstI
+r — rescue barcodes and RAD-Tags
+	-> Qu'est-ce que ça implique ? cf process_radtags.log
+c — clean data, remove any read with an uncalled base
+	-> Idem
+q — discard reads with low quality scores
+	-> Idem
+
+process_radtags crée un fichier de sortie /home/ubuntu/Desktop/Odrade/Artemia/PhD/Artemia/Stacks/RADSeq/demultiplexed_ON_pstI/process_radtags.log + tous les fichiers type "sample_BARCODE".fq
+
+Dans le .log, on apprend que sur l'ensemble des 85603066 reads, 90.6% sont retenus avec les arguments utilisés :
+Ambiguous Barcodes	2045058
+Low Quality	1065686
+Ambiguous RAD-Tag	4958306
+Retained Reads	77534016
+
+Pour les fq de sortie, cf fichiers.
+####################################################################################################
+#2 De Novo Locus construction:
+####################################################################################################
+##A Ustacks: Comparing the stacks it will form a set of putative loci and detect SNPs at each locus using a maximum likelihood framework
+
+1 st stage: grouping reads into piles (=stacks) of strictly identical reads
+2 nd stage: grouping stacks into loci (joining the two alleles of a locus)
+	Consensus sequence of a stack is broken down into kmers and stored in a dictionary. Two stacks sharing a certain amount of kmers will be deemed potential match and aligned together. If the alignment contains less than M differences, the stacks will be merged a a locus. Possibility to add secondary reads (singletons from the first step, containing sequencing error). Control the mismatch of the secondary reads to your primary reads using the N parameter.
+
+On se rend dans le répertoire de sortie de "process_radtags" et on lance ustacks.
+Script utilisé :
+{
+#!/bin/bash
+# Shell to use
+#$ -S /bin/bash
+# Name of the job in SGE
+#$ -N ustacks
+# Name of the queue to use
+#$ -q cemeb.q
+# run in the current directory
+#$ -cwd
+#$ -o o.ustacks.txt
+#$ -e e.ustacks.txt
+
+/share/apps/bin/stacks/bin/ustacks	-t	fastq	-f	../demultiplexed_ON_99_pstI/sample_AAAAA.fq	-o	../stacks_240614/	-H	-p	15	-r	-i	1
+/share/apps/bin/stacks/bin/ustacks	-t	fastq	-f	../demultiplexed_ON_99_pstI/sample_AACCC.fq	-o	../stacks_240614/	-H	-p	15	-r	-i	2
+
+#ETC... A changer avec une boucle for...
+}
+
+
+Description des arguments utilisés (liste complete sur : http://catchenlab.life.illinois.edu/stacks/comp/ustacks.php) :
+t — input file Type. Supported types: fasta, fastq, gzfasta, or gzfastq (default: guess)
+f — input file path
+o — output path to write results
+H — disable calling haplotypes from secondary reads
+p — enable parallel execution with num_threads threads
+r — enable the Removal algorithm, to drop highly-repetitive stacks (and nearby errors) from algorithm. -> CETTE  OPTION A L'AIR D'AVOIR DISPARUE DANS LES DERNIERE VERSION DE USTACKS...
+	Cette option a été remplacée par --keep_high_cov :disable the algorithm that removes highly-repetitive stacks and nearby errors.
+	C'est donc le contraire... On doit désactivé ce comportement par défaut...
+i — a unique integer ID to identify this sample
+m — Minimum depth of coverage required to create a stack (default 2)
+M — Maximum distance (in nucleotides) allowed between stacks (default 2) ICI 3
+
+
+Ustacks crée les fichiers e.ustacks.txt; SAMPLE_NAME.tags.tsv; SAMPLE_NAME.snps.tsv; SAMPLE_NAME.alleles.tsv :
+	-> e.ustacks.txt cf. file
+	-> SAMPLE_NAME.tags.tsv
+Champs :
+1: SQL ID (0) Pas important maintenant
+2: Sample ID
+3: Locus ID
+4: Chromosome (ABSCENT CHEZ NOUS)
+5: Basepair (ABSCENT CHEZ NOUS CAR NON ALIGNE SUR REFERENCE ABSCENTE)
+6: Strand (+ PAR DEFAUT CHEZ NOUS CAR NON ALIGNE SUR REFERENCE ABSCENTE)
+7: Sequence Type (Either 'consensus', 'model', 'primary' or 'secondary', see the notes.)
+8: Stack component (An integer representing which stack component this read belongs to.)
+9: Sequence ID (The individual sequence read that was merged into this stack.)
+10: Sequence (The raw sequencing read.)
+11: Deleveraged Flag (If "1", this stack was processed by the deleveraging algorithm and was broken down from a larger stack.)
+12: Blacklisted Flag (If "1", this stack was still confounded depsite processing by the deleveraging algorithm.)
+13: Lumberjackstack Flag (If "1", this stack was set aside due to having an extreme depth of coverage.)
+14: Log likelihood (ABSCENT CHEZ NOUS)
+
+	-> SAMPLE_NAME.snps.tsv
+Champs :
+1: SQL ID (0) Pas important maintenant
+2: Sample ID
+3: Locus ID
+4: Column (Position of the nucleotide within the locus, reported using a zero-based offset (first nucleotide is enumerated as 0))
+5: Type (ABSCENT CHEZ NOUS)
+6: Likelihood ratio (From the SNP-calling model.)
+7: Rank_1, Majority nucleotide.
+8: Rank_2, Alternative nucleotide
+9: Rank_3, Third alternative nucleotide (only possible in the batch_X.catalog.snps.tsv file).
+10: Rank_4, Fourth alternative nucleotide (only possible in the batch_X.catalog.snps.tsv file).
+
+
+	-> SAMPLE_NAME.alleles.tsv
+Champs :
+1: SQL ID (0) Pas important maintenant
+2: Sample ID
+3: Locus ID
+4: Haplotype (The haplotype, as constructed from the called SNPs at each locus.)
+5: Percent (Percentage of reads that have this haplotype)
+6: Count (Raw number of reads that have this haplotype)
+
+####################################################################################################
+##B Creating a reference catalog for the sample-set with cstacks:
+A catalog can be built from any set of samples processed by the ustacks or pstacks programs. It will create a set of consensus loci, merging alleles together. In the case of a genetic cross, a catalog would be constructed from the parents of the cross to create a set of all possible alleles expected in the progeny of the cross.
+
+	/!\ L'intérêt de cstacks et de créer un catalogue pour pouvoir comparer les loci des individus entre eux. Si ustacks nous donne bien pour chaque locus les snps, les tags et les allèles, on ne sait pas si le locus par exemple 41 d'un individu 1 ne correspond pas au locus 103 de l'individus 2. De plus cstacks permet d'utiliser pour creer ce catalogue de loci non pas toute la population mais seulement ses parents.
+
+Script utilisé :
+{
+#!/bin/bash
+# Shell to use
+#$ -S /bin/bash
+# Name of the job in SGE
+#$ -N cstacks
+# Name of the queue to use
+#$ -q cemeb.q
+# run in the current directory
+#$ -cwd
+#$ -o o.cstacks.txt
+#$ -e e.cstacks.txt
+
+/share/apps/bin/stacks/bin/cstacks -b 1 -p 15 -n 2 -o ../stacks_110714/ -s ../stacks_110714/sample_AAAAA -s ../stacks_110714/sample_AACCC
+#ETC... A changer avec une boucle for...
+}
+
+cstacks -b 1 -p 4 -n 2 -o cstacks_res_sans_Caitive_3_4_9/ -s ustacks_res_sans_Caitive_3_4_9/sample_CATGA -s ustacks_res_sans_Caitive_3_4_9/sample_ATCGA -s ustacks_res_sans_Caitive_3_4_9/sample_TCGAG -s ustacks_res_sans_Caitive_3_4_9/sample_ATTAG -s ustacks_res_sans_Caitive_3_4_9/sample_ACTGC -s ustacks_res_sans_Caitive_3_4_9/sample_CAACT -s ustacks_res_sans_Caitive_3_4_9/sample_AAAAA -s ustacks_res_sans_Caitive_3_4_9/sample_ACGTA -s ustacks_res_sans_Caitive_3_4_9/sample_GTACA -s ustacks_res_sans_Caitive_3_4_9/sample_AAGGG -s ustacks_res_sans_Caitive_3_4_9/sample_AGCTG -s ustacks_res_sans_Caitive_3_4_9/sample_AGGAC -s ustacks_res_sans_Caitive_3_4_9/sample_ACACG -s ustacks_res_sans_Caitive_3_4_9/sample_TAATG -s ustacks_res_sans_Caitive_3_4_9/sample_GAAGC -s ustacks_res_sans_Caitive_3_4_9/sample_AGAGT -s ustacks_res_sans_Caitive_3_4_9/sample_TGACC -s ustacks_res_sans_Caitive_3_4_9/sample_AACCC -s ustacks_res_sans_Caitive_3_4_9/sample_TGGTT -s ustacks_res_sans_Caitive_3_4_9/sample_ATGCT -s ustacks_res_sans_Caitive_3_4_9/sample_GTGTG -s ustacks_res_sans_Caitive_3_4_9/sample_CGATA -s ustacks_res_sans_Caitive_3_4_9/sample_CTGAA -s ustacks_res_sans_Caitive_3_4_9/sample_TAGCA -s ustacks_res_sans_Caitive_3_4_9/sample_AGTCA -s ustacks_res_sans_Caitive_3_4_9/sample_GAGAT -s ustacks_res_sans_Caitive_3_4_9/sample_ACCAT -s ustacks_res_sans_Caitive_3_4_9/sample_AATTT -s ustacks_res_sans_Caitive_3_4_9/sample_TCAGA -s ustacks_res_sans_Caitive_3_4_9/sample_GGAAG -s ustacks_res_sans_Caitive_3_4_9/sample_GGGGA -s ustacks_res_sans_Caitive_3_4_9/sample_CTAGG -s ustacks_res_sans_Caitive_3_4_9/sample_CGGCG -s ustacks_res_sans_Caitive_3_4_9/sample_GCGCC -s ustacks_res_sans_Caitive_3_4_9/sample_ATATC -s ustacks_res_sans_Caitive_3_4_9/sample_GCATT
+
+
+
+
+Description des arguments utilisés (liste complete sur : http://catchenlab.life.illinois.edu/stacks/comp/cstacks.php) :
+b — database/batch ID for this catalog (default 1).
+p — enable parallel execution with num_threads threads.
+n — number of mismatches allowed between sample loci when build the catalog (default 1).
+o — output path to write results.
+s — sample prefix from which to load loci into the catalog.
+
+The cstacks files are the same as those produced by ustacks programs although they are named as batch_X.catalog.tags.tsv, and similarly for the SNPs and alleles files. 
+
+####################################################################################################
+##C Reattributing standardized loci names to the samples with sstacks:
+Now that the catalog is made, each individual will be “mapped” against it to get the standard
+locus name and allow for cross-sample comparison. Sets of stacks, i.e. putative loci, constructed by the ustacks or pstacks programs can be searched against a catalog produced by cstacks. In the case of a genetic map, stacks from the progeny would be matched against the catalog to determine which progeny contain which parental alleles. In the case of a general population, all samples in the population would be matched against the catalog with sstacks. 
+
+Script utilisé :
+{
+#!/bin/bash
+# Shell to use
+#$ -S /bin/bash
+# Name of the job in SGE
+#$ -N sstacks
+# Name of the queue to use
+#$ -q cemeb.q
+# run in the current directory
+#$ -cwd
+#$ -o o.sstacks.txt
+#$ -e e.sstacks.txt
+
+/share/apps/bin/stacks/bin/sstacks -b 1 -p 6 -c ../stacks_110714/batch_1 -o ../stacks_110714/ -s ../stacks_110714/sample_AAAAA 
+/share/apps/bin/stacks/bin/sstacks -b 1 -p 6 -c ../stacks_110714/batch_1 -o ../stacks_110714/ -s ../stacks_110714/sample_AACCC 
+#ETC... A changer avec une boucle for...
+}
+Description des arguments utilisés (liste complete sur : http://catchenlab.life.illinois.edu/stacks/comp/sstacks.php) :
+b — database/batch ID of the catalog to consider (default: guess)
+p — enable parallel execution with num_threads threads
+c — path to the catalog
+o — output path to write results
+s — filename prefix from which to load sample loci
+
+sstacks créé le fichier
+	-> SAMPLE_NAME.matches.tsv: Matches to the catalog
+
+Champs :
+1: SQL ID	This field will always be "0", however the MySQL database will assign an ID when it is loaded.
+2: Batch ID	ID of this batch.
+3: Catalog ID	ID of the catalog locus matched against.
+4: Sample ID	Sample ID matched to the catalog.
+5: Locus ID	ID of the locus within this sample matched to the catalog.
+6: Haplotype	Matching haplotype.
+7: Stack Depth	number or reads contained in the locus that matched to the catalog.
+8: Log likelihood	Log likelihood of the matching locus. (ABSENT ICI)
+
+####################################################################################################
+##D Building a SNP matrix to be used for further analysis with populations:
+
+The populations program will analyze a population of individual samples computing a number of population genetics statistics as well as exporting a variety of standard output formats. A map specifying which individuals belong to which population is submitted to the program and the program will then calculate population genetics statistics such as expected/observed heterozygosity, π, and FIS at each nucleotide position. The populations program will compare all populations pairwise to compute FST. If a set of data is reference aligned, then a kernel-smoothed FST will also be calculated. The populations program can also compute a number of haplotype-based population genetics statistics including haplotype diversity, ΦST, and FST’. 
+
+Script utilisé :
+{
+#!/bin/bash
+
+# Shell to use
+#$ -S /bin/bash
+# Name of the job in SGE
+#$ -N populations
+# run in the current directory
+#$ -cwd
+#$ -o o.populations.txt
+#$ -e e.populations.txt
+
+/share/apps/bin/stacks/bin/populations -b 1 -t 6 -p 25 -P ../stacks_110714/ -M ../population.txt --vcf
+}
+
+Description des arguments utilisés (liste complete sur : http://catchenlab.life.illinois.edu/stacks/comp/populations.php) :
+-b,--batch_id — Batch ID to examine when exporting from the catalog (required by -P).
+-t,--threads — number of threads to run in parallel sections of code.
+-p [int] — minimum number of populations a locus must be present in to process a locus.
+-P,--in_path — path to the directory containing the Stacks files.
+-M,--popmap — path to a population map. (Format is 'SAMPLE1POP1\n...'.)
+--vcf — output SNPs in Variant Call Format (VCF).
+
+
+
+IL MANQUE CE FICHIER VCF...
